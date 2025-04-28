@@ -2,23 +2,26 @@ Bootstrap: docker
 From: ghcr.io/open-webui/open-webui:main
 
 %labels
-    Author Jahangir
-    Version 1.0
-
-%environment
-    export OLLAMA_BASE_URL=http://192.15.212.202
-    export PORT=8080
+    Author Your Name
+    Version 1.0.0
 
 %files
-    # Add any local files if needed
-    # Example: ./config.json /app/config.json
+    # You can add any local config files here if needed
 
-%startscript
-    # Use the actual startup script found in the container
-    echo "Starting Open WebUI via start.sh..."
-    cd /app/backend && ./start.sh
+%environment
+    export LC_ALL=C
+    export WEBUI_SECRET_KEY=your-secret-key-here
+    export OLLAMA_API_BASE_URL=http://localhost:11434
+    # Add other required environment variables here
+
+%runscript
+    exec /app/backend/start.sh
 
 %post
-    # Additional setup during build
-    echo "Building container..."
-    mkdir -p /app/backend/data  # Create volume mount point
+    # Install the required package
+    apt-get update && apt-get install -y python3-pip
+    pip install --no-cache-dir "huggingface_hub[hf_xet]"
+    
+    # Your existing post commands
+    mkdir -p /app/backend/{database,config,logs,data/cache}
+    chmod -R 755 /app/backend
