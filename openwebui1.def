@@ -2,7 +2,7 @@ Bootstrap: docker
 From: ghcr.io/open-webui/open-webui:main
 
 %labels
-    Author Your Name
+    Jahangir
     Version 1.0.0
 
 %files

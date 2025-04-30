@@ -12,7 +12,7 @@ From: ghcr.io/open-webui/open-webui:main
 
 %environment
     export LC_ALL=C
-    export WEBUI_SECRET_KEY=your-secret-key-here  # Change this!
+    # export WEBUI_SECRET_KEY=your-secret-key-here  # Change this!
     export OLLAMA_API_BASE_URL=http://localhost:11434
     # Force Hugging Face to use local files (no internet)
     export TRANSFORMERS_OFFLINE=1

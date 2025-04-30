@@ -1,0 +1,47 @@
+Bootstrap: docker
+From: ghcr.io/open-webui/open-webui:main
+
+%labels
+    Author Jahangir
+    Version 1.0.0
+    Description "Open WebUI + Local llama.cpp Server"
+
+%files
+    # Optional: Add local config files (e.g., custom UI settings)
+    # ./config.json /app/backend/config/
+
+%environment
+    # Locale and offline settings
+    export LC_ALL=C
+    export TRANSFORMERS_OFFLINE=1
+    export HF_DATASETS_OFFLINE=1
+
+    # Point to local llama.cpp server (default port 8080)
+    export LLAMA_API_BASE_URL=http://localhost:8080
+
+%post
+    # Install minimal dependencies
+    apt-get update && apt-get install -y --no-install-recommends \
+        python3-pip \
+        && rm -rf /var/lib/apt/lists/*
+
+    # Install required Python packages (no caching)
+    pip install --no-cache-dir \
+        "huggingface_hub[hf_xet]" \
+        sentence-transformers
+
+    # Pre-download embedding model (for offline RAG)
+    mkdir -p /app/backend/data/cache/huggingface
+    python3 -c "
+from sentence_transformers import SentenceTransformer
+SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2', cache_folder='/app/backend/data/cache')
+"
+
+    # Ensure proper permissions
+    mkdir -p /app/backend/{database,config,logs}
+    chmod -R 755 /app/backend
+
+%runscript
+    # Start Open WebUI (ensure llama.cpp server is running on host)
+    echo "Connecting to local llama.cpp server at $LLAMA_API_BASE_URL"
+    exec /app/backend/start.sh
