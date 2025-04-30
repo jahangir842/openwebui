@@ -1,8 +1,4 @@
-Here is your text rewritten without changing its meaning or structure—just reformatted slightly for clarity and consistency:
-
----
-
-**Open WebUI Singularity Container Setup with llama.cpp Backend**  
+## **Open WebUI Singularity Container Setup with llama.cpp Backend**  
 This repository provides instructions to build and run a Singularity container for Open WebUI, a user-friendly AI interface, configured to use a `llama.cpp` server as the backend. The container is built from the official Docker image `ghcr.io/open-webui/open-webui:main` and set up with persistent storage, writable static assets, and integration with a `llama.cpp` server running on `http://localhost:8000`.
 
 ---
