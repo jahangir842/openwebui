@@ -1,116 +1,170 @@
-Open WebUI Singularity Container Setup with llama.cpp Backend
-This repository provides instructions to build and run a Singularity container for Open WebUI, a user-friendly AI interface, configured to use a llama.cpp server as the backend. The container is built from the official Docker image ghcr.io/open-webui/open-webui:main and set up with persistent storage, writable static assets, and integration with a llama.cpp server running on http://localhost:8000.
-Prerequisites
+Here is your text rewritten without changing its meaning or structure—just reformatted slightly for clarity and consistency:
 
-Operating System: Linux (e.g., Ubuntu 22.04 or later)
-Singularity: Version 3.8 or higher (tested with 4.3.0)
-llama.cpp Server: Running locally on http://localhost:8000 (provides an OpenAI-compatible API)
-Root Privileges: Required for building the Singularity image
-Dependencies: openssl for generating secret keys
+---
 
-Installation
+**Open WebUI Singularity Container Setup with llama.cpp Backend**  
+This repository provides instructions to build and run a Singularity container for Open WebUI, a user-friendly AI interface, configured to use a `llama.cpp` server as the backend. The container is built from the official Docker image `ghcr.io/open-webui/open-webui:main` and set up with persistent storage, writable static assets, and integration with a `llama.cpp` server running on `http://localhost:8000`.
 
-Install Singularity:Ensure Singularity is installed. On Ubuntu, run:
+---
+
+### Prerequisites
+
+- **Operating System:** Linux (e.g., Ubuntu 22.04 or later)  
+- **Singularity:** Version 3.8 or higher (tested with 4.3.0)  
+- **llama.cpp Server:** Running locally on `http://localhost:8000` (provides an OpenAI-compatible API)  
+- **Root Privileges:** Required for building the Singularity image  
+- **Dependencies:** `openssl` for generating secret keys  
+
+---
+
+### Installation
+
+**1. Install Singularity**  
+Ensure Singularity is installed. On Ubuntu, run:  
+```bash
 sudo apt-get update && sudo apt-get install -y singularity-container
+```
 
-Verify the version:
+**Verify the version:**  
+```bash
 singularity --version
+```
 
-Expected output: singularity-ce version 4.3.0 or similar.
+Expected output:  
+```text
+singularity-ce version 4.3.0
+```
 
-Set Up llama.cpp Server:Ensure your llama.cpp server is running with an OpenAI-compatible API. For example:
+**2. Set Up `llama.cpp` Server**  
+Ensure your `llama.cpp` server is running with an OpenAI-compatible API. For example:  
+```bash
 ./server -m <model.gguf> --host 0.0.0.0 --port 8000 --api
+```
 
-Verify the server is accessible:
+**Verify the server is accessible:**  
+```bash
 curl http://localhost:8000/v1/models
+```
 
-Expected output: A JSON response listing available models (e.g., {"data": [...]}).
-Note: The llama.cpp server must expose an OpenAI-compatible API (e.g., /v1/chat/completions). Check the llama.cpp documentation for the correct endpoint and ensure it’s running before starting Open WebUI.
+Expected output: JSON listing available models, e.g., `{"data": [...]}`.  
+**Note:** Ensure `/v1/chat/completions` is available—refer to `llama.cpp` documentation.
 
+---
 
-Building the Singularity Image
-Build the Singularity SIF image from the official Open WebUI Docker image:
+### Building the Singularity Image
+
+Build the `.sif` image from the official Docker image:  
+```bash
 sudo singularity build openwebui.sif docker://ghcr.io/open-webui/open-webui:main
+```
 
+Creates `openwebui.sif` in the current directory.  
+**Note:** Internet access is required to pull the Docker image from GHCR.
 
-Output: Creates openwebui.sif in the current directory.
-Note: Requires internet access to pull the Docker image from GitHub Container Registry (GHCR).
+---
 
-Setting Up Persistent Storage
-Create directories for persistent data and static files:
+### Setting Up Persistent Storage
+
+Create directories:  
+```bash
 mkdir -p ~/open-webui-data
 chmod -R u+rwX ~/open-webui-data
 
 mkdir -p ~/open-webui-static
 chmod -R u+rwX ~/open-webui-static
+```
 
+- `~/open-webui-data`: Persistent data (database, user settings)  
+- `~/open-webui-static`: Static assets (icons, manifests)  
 
-~/open-webui-data: Stores persistent data (e.g., database, user settings).
-~/open-webui-static: Stores static assets (e.g., icons, manifests) written during startup.
+---
 
-Running the Container
-Run the Open WebUI container, configured to connect to the llama.cpp server:
+### Running the Container
+
+Run the container with the following command:  
+```bash
 singularity run \
   --bind ~/open-webui-data:/app/backend/data \
   --bind ~/open-webui-static:/app/backend/open_webui/static \
   --env OPENAI_API_BASE_URL=http://localhost:8000/v1 \
   --env WEBUI_SECRET_KEY=$(openssl rand -hex 32) \
   openwebui.sif /app/backend/start.sh
+```
 
+**Options explained:**
 
-Options:
+- `--bind ~/open-webui-data:/app/backend/data`: Mount persistent data  
+- `--bind ~/open-webui-static:/app/backend/open_webui/static`: Writable static assets  
+- `--env OPENAI_API_BASE_URL=http://localhost:8000/v1`: llama.cpp API endpoint  
+- `--env WEBUI_SECRET_KEY=$(openssl rand -hex 32)`: Random secret key  
+- `/app/backend/start.sh`: Startup script  
 
---bind ~/open-webui-data:/app/backend/data: Mounts persistent data directory.
---bind ~/open-webui-static:/app/backend/open_webui/static: Mounts writable static assets directory.
---env OPENAI_API_BASE_URL=http://localhost:8000/v1: Points Open WebUI to the llama.cpp server’s OpenAI-compatible API endpoint.
---env WEBUI_SECRET_KEY=$(openssl rand -hex 32): Generates a random secret key for session security.
-/app/backend/start.sh: Explicitly runs the startup script.
+**Access:** Open WebUI will be available at `http://localhost:8080`.
 
+---
 
-Access: Open WebUI should be available at http://localhost:8080.
+### Troubleshooting
 
-
-Troubleshooting
-
-Port Conflicts:Ensure port 8080 is free for Open WebUI:
+**Port Conflicts**  
+Ensure port 8080 is free:  
+```bash
 netstat -tuln | grep 8080
+```
 
-If occupied, stop the conflicting service or modify the port in /app/backend/start.sh or by running Uvicorn directly.
+Stop conflicting service or modify the port in `/app/backend/start.sh`.
 
-llama.cpp Server Not Running:Verify the llama.cpp server:
+**llama.cpp Server Not Running**  
+Check server:  
+```bash
 curl http://localhost:8000/v1/models
+```
 
-If it fails, restart the server:
+If it fails, restart:  
+```bash
 ./server -m <model.gguf> --host 0.0.0.0 --port 8000 --api
+```
 
-Ensure the /v1 endpoint is correct. Some llama.cpp versions may use a different path (e.g., /). Check the server’s documentation or test with curl.
+Ensure `/v1` endpoint is correct; refer to `llama.cpp` documentation.
 
-Filesystem Errors:If you see Read-only file system errors, ensure the bind mounts are writable:
+**Filesystem Errors**  
+Check write permissions:  
+```bash
 ls -ld ~/open-webui-data ~/open-webui-static
 touch ~/open-webui-data/test ~/open-webui-static/test
 rm ~/open-webui-data/test ~/open-webui-static/test
+```
 
-
-Missing Environment Variables:If Open WebUI fails with ValueError: Required environment variable not found, inspect /app/backend/start.sh:
+**Missing Environment Variables**  
+If you see `ValueError: Required environment variable not found`, inspect the script:  
+```bash
 singularity shell openwebui.sif
 cat /app/backend/start.sh
+```
 
-Add missing variables with --env, e.g., --env VARIABLE=value. For llama.cpp, OPENAI_API_BASE_URL is critical.
+Add missing variables using `--env`, e.g., `--env VARIABLE=value`.
 
-Image Corruption:Rebuild the image if issues persist:
+**Image Corruption**  
+Rebuild image:  
+```bash
 sudo singularity build openwebui.sif docker://ghcr.io/open-webui/open-webui:main
+```
 
-
-llama.cpp Compatibility:Ensure the llama.cpp server supports OpenAI-compatible endpoints (e.g., /v1/chat/completions). Test with:
+**llama.cpp Compatibility**  
+Test endpoint:  
+```bash
 curl -X POST http://localhost:8000/v1/chat/completions \
   -H "Content-Type: application/json" \
   -d '{"model": "<model-name>", "messages": [{"role": "user", "content": "Hello"}]}'
+```
 
-If it fails, check the llama.cpp version or configuration.
+If it fails, check the `llama.cpp` version or flags.
 
+---
 
-Optional: Custom Definition File
-For a persistent configuration, use a Singularity definition file:
+### Optional: Custom Definition File
+
+Create `openwebui.def`:  
+```
 Bootstrap: docker
 From: ghcr.io/open-webui/open-webui:main
 
@@ -122,24 +176,36 @@ From: ghcr.io/open-webui/open-webui:main
 
 %runscript
     exec /app/backend/start.sh
+```
 
-Save as openwebui.def and build:
+**Build and run:**  
+```bash
 sudo singularity build openwebui.sif openwebui.def
 
-Run:
 singularity run \
   --bind ~/open-webui-data:/app/backend/data \
   --bind ~/open-webui-static:/app/backend/open_webui/static \
   openwebui.sif
+```
 
-Note: The static WEBUI_SECRET_KEY in %environment may not be ideal for security. Set it dynamically at runtime for production.
-Notes
+**Note:** For production, do **not** hardcode `WEBUI_SECRET_KEY`. Set it dynamically.
 
-Version: Tested with Open WebUI v0.6.5, Singularity 4.3.0, and llama.cpp server.
-Static Files: Open WebUI writes static assets to /app/backend/open_webui/static during startup, requiring a writable bind mount.
-CORS: The default CORS_ALLOW_ORIGIN=* is insecure for production. Set CORS_ALLOW_ORIGIN to specific origins (e.g., http://localhost:8080).
-llama.cpp Configuration: Ensure the llama.cpp server is configured with the correct model and API endpoint. Some versions may require additional flags (e.g., --chat or --completions).
-Documentation: Refer to Open WebUI GitHub and llama.cpp GitHub for additional configuration options.
+---
 
-License
+### Notes
+
+- **Version:** Open WebUI v0.6.5, Singularity 4.3.0, `llama.cpp` server  
+- **Static Files:** Written to `/app/backend/open_webui/static`  
+- **CORS:** Use specific origin in production  
+- **llama.cpp Configuration:** Ensure correct model and API flags  
+- **Documentation:** Refer to official Open WebUI and `llama.cpp` GitHub repos
+
+---
+
+### License
+
 This setup is based on Open WebUI, licensed under the BSD-3-Clause License.
+
+---
+
+Would you like this converted into a downloadable PDF or markdown file?
