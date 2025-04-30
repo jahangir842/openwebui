@@ -63,15 +63,15 @@ Creates `openwebui.sif` in the current directory.
 
 Create directories:  
 ```bash
-mkdir -p ~/open-webui-data
-chmod -R u+rwX ~/open-webui-data
+mkdir open-webui-data
+chmod -R u+rwX open-webui-data
 
-mkdir -p ~/open-webui-static
-chmod -R u+rwX ~/open-webui-static
+mkdir open-webui-static
+chmod -R u+rwX open-webui-static
 ```
 
-- `~/open-webui-data`: Persistent data (database, user settings)  
-- `~/open-webui-static`: Static assets (icons, manifests)  
+- `open-webui-data`: Persistent data (database, user settings)  
+- `open-webui-static`: Static assets (icons, manifests)  
 
 ---
 
@@ -80,8 +80,8 @@ chmod -R u+rwX ~/open-webui-static
 Run the container with the following command:  
 ```bash
 singularity run \
-  --bind ~/open-webui-data:/app/backend/data \
-  --bind ~/open-webui-static:/app/backend/open_webui/static \
+  --bind open-webui-data:/app/backend/data \
+  --bind open-webui-static:/app/backend/open_webui/static \
   --env OPENAI_API_BASE_URL=http://localhost:8000/v1 \
   --env WEBUI_SECRET_KEY=$(openssl rand -hex 32) \
   openwebui.sif /app/backend/start.sh
@@ -89,8 +89,8 @@ singularity run \
 
 **Options explained:**
 
-- `--bind ~/open-webui-data:/app/backend/data`: Mount persistent data  
-- `--bind ~/open-webui-static:/app/backend/open_webui/static`: Writable static assets  
+- `--bind open-webui-data:/app/backend/data`: Mount persistent data  
+- `--bind open-webui-static:/app/backend/open_webui/static`: Writable static assets  
 - `--env OPENAI_API_BASE_URL=http://localhost:8000/v1`: llama.cpp API endpoint  
 - `--env WEBUI_SECRET_KEY=$(openssl rand -hex 32)`: Random secret key  
 - `/app/backend/start.sh`: Startup script  
@@ -125,9 +125,9 @@ Ensure `/v1` endpoint is correct; refer to `llama.cpp` documentation.
 **Filesystem Errors**  
 Check write permissions:  
 ```bash
-ls -ld ~/open-webui-data ~/open-webui-static
-touch ~/open-webui-data/test ~/open-webui-static/test
-rm ~/open-webui-data/test ~/open-webui-static/test
+ls -ld open-webui-data ~/open-webui-static
+touch open-webui-data/test ~/open-webui-static/test
+rm open-webui-data/test ~/open-webui-static/test
 ```
 
 **Missing Environment Variables**  
@@ -201,7 +201,3 @@ singularity run \
 ### License
 
 This setup is based on Open WebUI, licensed under the BSD-3-Clause License.
-
----
-
-Would you like this converted into a downloadable PDF or markdown file?
