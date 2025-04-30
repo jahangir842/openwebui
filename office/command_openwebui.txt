@@ -1,1 +1,0 @@
-singularity run --nv -B /home/hassan/openwebui-data:/data openwebui.sif
