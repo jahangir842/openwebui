@@ -1,0 +1,169 @@
+Bootstrap: docker
+From: nvidia/cuda:12.4.0-devel-ubuntu22.04
+
+%files
+    # Any local files to copy into the container (if needed)
+
+%post
+    # Install dependencies
+    apt update && apt install -y \
+        build-essential \
+        cmake \
+        git \
+        python3 \
+        python3-pip \
+        wget \
+        libopenblas-dev \
+        ninja-build \
+        pkg-config \
+        patchelf \
+        libcurl4-openssl-dev
+    
+    # Remove apt cache
+    rm -rf /var/lib/apt/lists/*
+
+    # Set CUDA environment variables
+    export CUDA_HOME=/usr/local/cuda
+    export PATH=$CUDA_HOME/bin:$PATH
+    export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+
+    # Create the CUDA stub directory if it doesn't exist
+    mkdir -p /usr/local/cuda/lib64/stubs
+    
+    # Only create symlinks if they don't already exist
+    if [ ! -f /usr/local/cuda/lib64/stubs/libcuda.so.1 ]; then
+        ln -s /usr/lib/x86_64-linux-gnu/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so.1
+    fi
+    if [ ! -f /usr/local/cuda/lib64/stubs/libcuda.so ]; then
+        ln -s /usr/lib/x86_64-linux-gnu/libcuda.so /usr/local/cuda/lib64/stubs/libcuda.so
+    fi
+    
+    # Set stub library path for compilation
+    export LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:$LD_LIBRARY_PATH
+
+    # Clone llama.cpp
+    git clone https://github.com/ggerganov/llama.cpp.git /opt/llama.cpp
+    cd /opt/llama.cpp
+    
+    # CMake build only - the Makefile is deprecated
+    mkdir -p build
+    cd build
+    
+    # Configure with explicit CUDA paths and flags for multi-GPU support
+    # IMPORTANT: Disabled advanced CPU instructions to prevent "Illegal instruction" errors
+    cmake .. \
+        -DGGML_CUDA=ON \
+        -DCMAKE_CUDA_ARCHITECTURES="80" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_LIBRARY_PATH=/usr/local/cuda/lib64/stubs \
+        -DCMAKE_CXX_FLAGS="-L/usr/local/cuda/lib64/stubs -lcuda" \
+        -DLLAMA_CURL=ON \
+        -DLLAMA_NATIVE=OFF
+    
+    # Build with explicit library paths
+    export LD_LIBRARY_PATH=/usr/local/cuda/lib64/stubs:/usr/lib/x86_64-linux-gnu:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+    cmake --build . --config Release -j
+    
+    # Fix the rpath to include the build/bin directory where libllama.so is located
+    find /opt/llama.cpp/build/bin -type f -executable -exec patchelf --set-rpath "/opt/llama.cpp/build/bin:/usr/local/cuda/lib64:/usr/lib/x86_64-linux-gnu" {} \; 2>/dev/null || true
+    find /opt/llama.cpp/build/bin -name "*.so" -exec patchelf --set-rpath "/opt/llama.cpp/build/bin:/usr/local/cuda/lib64:/usr/lib/x86_64-linux-gnu" {} \; 2>/dev/null || true
+    
+    # Create directories for models and configs
+    mkdir -p /models
+    mkdir -p /configs
+
+    # Create a simple server configuration file
+    cat > /configs/server-config.json << EOT
+{
+  "host": "0.0.0.0",
+  "port": 8080,
+  "n_gpu_layers": 100,
+  "tensor_split": [0.25, 0.25, 0.25, 0.25],
+  "embedding": false,
+  "n_ctx": 4096,
+  "n_batch": 512,
+  "n_threads": 16
+}
+EOT
+
+%environment
+    export LC_ALL=C
+    export CUDA_HOME=/usr/local/cuda
+    export PATH="/opt/llama.cpp/build/bin:/opt/llama.cpp:/opt/llama.cpp/main:$CUDA_HOME/bin:$PATH"
+    export LD_LIBRARY_PATH="/opt/llama.cpp/build/bin:/usr/local/cuda/lib64:/usr/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH"
+    # Multi-GPU environment variables
+    export CUDA_VISIBLE_DEVICES=0,1,2,3
+    export GGML_CUDA_DEVICES=0,1,2,3
+    # Environment variables for disabling advanced CPU instructions
+    export GGML_NEAVX512=1
+    export GGML_NEAVX2=1
+    export GGML_NEAVX=1
+    export GGML_NEFMA=1
+    export GGML_CPU_ONLY_FORCE_BASIC=1
+
+%runscript
+    if [ $# -eq 0 ]; then
+        echo "Usage: singularity run --nv singularity_image.sif [options]"
+        echo "Example: singularity run --nv --bind /path/to/models:/models llama_a100_fixed.sif -m /models/model.gguf -p 'Your prompt' -n 128 --n-gpu-layers 100 --tensor-split 0.25,0.25,0.25,0.25"
+        echo "For server mode: singularity run --app server --nv --bind /home2/dev5a1/llm_models:/models llama_a100_fixed.sif -m /models/Meta-Llama-3.3-70B-Instruct-Model-Hadith.Q5_K_M.gguf --host 0.0.0.0 --port 8080 --n-gpu-layers 100 --tensor-split 0.25,0.25,0.25,0.25"
+        exit 1
+    fi
+
+    # Use main as the default executable
+    EXEC="/opt/llama.cpp/build/bin/main"
+    
+    # Check if we should use server mode
+    for arg in "$@"; do
+        if [ "$arg" = "--server" ]; then
+            EXEC="/opt/llama.cpp/build/bin/llama-server"
+            break
+        fi
+    done
+    
+    if [ ! -f "$EXEC" ]; then
+        echo "Error: Could not find the executable: $EXEC"
+        echo "Available files in build/bin:"
+        ls -la /opt/llama.cpp/build/bin/ || echo "No build/bin directory found"
+        exit 1
+    fi
+    
+    $EXEC "$@"
+
+%apprun server
+    if [ $# -eq 0 ]; then
+        echo "Usage: singularity run --app server --nv llama_a100_fixed.sif -m /models/model.gguf [server options]"
+        echo "Example: singularity run --app server --nv --bind /path/to/models:/models llama_a100_fixed.sif -m /models/model.gguf --host 0.0.0.0 --port 8080 --n-gpu-layers 70 --tensor-split 0.25,0.25,0.25,0.25 --n-ctx 4096"
+        exit 1
+    fi
+
+    EXEC="/opt/llama.cpp/build/bin/llama-server"
+    
+    if [ ! -f "$EXEC" ]; then
+        echo "Error: Could not find the server executable."
+        exit 1
+    fi
+    
+    $EXEC "$@"
+
+%help
+    This container includes llama.cpp for running inference with various LLM models using multiple A100 GPUs.
+    It has been modified to avoid "Illegal instruction" errors by disabling advanced CPU instructions.
+    
+    === Server Mode ===
+    To run the server:
+    singularity run --nv --bind /path/to/models:/models llama_a100_fixed.sif --server -m /models/model.gguf --host 0.0.0.0 --port 8080 --n-gpu-layers 70 --tensor-split 0.25,0.25,0.25,0.25 --n-ctx 4096
+    
+    Or using the server app:
+    singularity run --app server --nv --bind /path/to/models:/models llama_a100_fixed.sif -m /models/model.gguf --host 0.0.0.0 --port 8080 --n-gpu-layers 70 --tensor-split 0.25,0.25,0.25,0.25 --n-ctx 4096
+    
+    === CLI Mode (Default) ===
+    To use in CLI mode:
+    singularity run --nv --bind /path/to/models:/models llama_a100_fixed.sif -m /models/model.gguf -p "Your prompt" -n 128 --n-gpu-layers 70 --tensor-split 0.25,0.25,0.25,0.25
+    
+    === Important Notes ===
+    - The --nv flag is required for GPU acceleration
+    - This container is optimized for compatibility by disabling advanced CPU instructions
+    - Best suited for running on A100 GPUs
+    
+    Bind your models directory using --bind /path/to/models:/models
+

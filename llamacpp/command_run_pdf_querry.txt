@@ -1,0 +1,5 @@
+python3 query_llama.py   --pdf_folder /mnt/singularity/pdf/   --question "who have the python experience more than 4 years"
+
+
+
+
